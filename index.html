@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roteiro Tríplice Fronteira - Fim de Ano (25 a 31 Dezembro)</title>
+    <!-- Incluindo Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f7f9fb;
+      }
+      .day-card {
+        box-shadow:
+          0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transition: transform 0.3s ease-in-out;
+      }
+      .day-card:hover {
+        transform: translateY(-5px);
+      }
+      .time-slot {
+        padding-left: 0.75rem; /* p-3 */
+        border-left: 3px solid;
+        min-height: 80px; /* Garante altura mínima para conteúdo dinâmico */
+      }
+      /* Cores temáticas */
+      .cde-color {
+        border-color: #ef4444;
+      } /* Vermelho - Compras/CDE */
+      .br-color {
+        border-color: #22c55e;
+      } /* Verde - Brasil/Natureza */
+      .ar-color {
+        border-color: #3b82f6;
+      } /* Azul - Argentina/Cultura */
+      .lazer-color {
+        border-color: #f59e0b;
+      } /* Amarelo - Lazer/Aquático */
+
+      /* Estilos específicos para o slot de tempo */
+      .slot-manhã {
+        background-color: #f0fdf4;
+      }
+      .slot-tarde {
+        background-color: #fffbeb;
+      }
+      .slot-noite {
+        background-color: #f0f9ff;
+      }
+
+      .loading-dot {
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+      .loading-dot:nth-child(1) {
+        animation-delay: -0.32s;
+      }
+      .loading-dot:nth-child(2) {
+        animation-delay: -0.16s;
+      }
+      @keyframes bounce {
+        0%,
+        80%,
+        100% {
+          transform: scale(0);
+        }
+        40% {
+          transform: scale(1);
+        }
+      }
+    </style>
+    <script>
+      const API_URL =
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
+      const apiKey = ""; // Será preenchida automaticamente pelo ambiente Canvas.
+
+      /**
+       * Chama a API Gemini para gerar conteúdo.
+       * @param {string} userQuery O texto da solicitação do usuário.
+       * @param {string} systemPrompt O contexto/persona para o modelo.
+       * @returns {Promise<string>} O texto gerado pelo modelo.
+       */
+      async function callGeminiAPI(userQuery, systemPrompt) {
+        const payload = {
+          contents: [{ parts: [{ text: userQuery }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+        };
+
+        for (let i = 0; i < 3; i++) {
+          // Tentativas de requisição (max 3)
+          try {
+            const response = await fetch(API_URL + apiKey, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              if (response.status === 429) {
+                // Too Many Requests (Rate limit)
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                console.warn(
+                  `Rate limit atingido. Tentando novamente em ${delay / 1000}s...`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, delay));
+                continue;
+              }
+              throw new Error(
+                `Erro de API: ${response.status} ${response.statusText}`,
+              );
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (text) {
+              return text;
+            } else {
+              console.error("Resposta do Gemini incompleta:", result);
+              throw new Error("Resposta da API vazia ou inválida.");
+            }
+          } catch (error) {
+            console.error("Erro ao chamar a API Gemini:", error);
+            if (i === 2)
+              throw new Error(
+                "Não foi possível gerar a resposta. Tente novamente.",
+              );
+          }
+        }
+      }
+
+      /**
+       * Funcionalidade 1: Gerar sugestões de atividades para o Dia 7.
+       */
+      async function generateDay7Ideas() {
+        const outputElement = document.getElementById("day7-ideas-output");
+        const button = document.getElementById("generate-ideas-btn");
+
+        outputElement.innerHTML = `
+                <div class="flex items-center space-x-2 mt-2 text-gray-500">
+                    <div class="loading-dot w-2 h-2 bg-yellow-600 rounded-full"></div>
+                    <div class="loading-dot w-2 h-2 bg-yellow-600 rounded-full"></div>
+                    <div class="loading-dot w-2 h-2 bg-yellow-600 rounded-full"></div>
+                    <span class="text-sm">Gerando 3 ideias...</span>
+                </div>
+            `;
+        button.disabled = true;
+
+        const systemPrompt =
+          "Você é um guia turístico expert na Tríplice Fronteira (Foz do Iguaçu, Puerto Iguazú, Ciudad del Este). Sua função é sugerir 3 opções de atividades de manhã/tarde para preencher o dia livre de um roteiro, focando em cultura, história e natureza, mantendo o ritmo da viagem tranquilo. Responda em formato de lista numerada com uma breve descrição para cada item. Não repita Cataratas ou Itaipu.";
+        const userQuery =
+          "Sugira atividades para o dia livre em Foz do Iguaçu, considerando que os outros dias já tiveram Cataratas, Itaipu e Compras.";
+
+        try {
+          const result = await callGeminiAPI(userQuery, systemPrompt);
+          // Converte a lista numerada em HTML
+          const htmlContent = result
+            .split("\n")
+            .map((line) => {
+              if (line.match(/^\d+\./)) {
+                return `<li class="ml-4">${line.replace(/(\d+\.\s*)/, "<strong>$1</strong>")}</li>`;
+              }
+              return line;
+            })
+            .join("");
+
+          outputElement.innerHTML = `<ul class="list-none text-gray-700 mt-2">${htmlContent}</ul>`;
+        } catch (error) {
+          outputElement.innerHTML = `<p class="text-red-500 mt-2 text-sm">Erro: ${error.message}</p>`;
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      /**
+       * Funcionalidade 2: Assistente de Jantar.
+       */
+      async function askDinnerAssistant() {
+        const input = document.getElementById("dinner-query");
+        const outputElement = document.getElementById(
+          "dinner-assistant-output",
+        );
+        const button = document.getElementById("dinner-btn");
+        const userQuery = input.value.trim();
+
+        if (!userQuery) {
+          outputElement.innerHTML =
+            '<p class="text-red-500 mt-2 text-sm">Por favor, digite sua pergunta.</p>';
+          return;
+        }
+
+        outputElement.innerHTML = `
+                <div class="flex items-center space-x-2 mt-2 text-gray-500">
+                    <div class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <div class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <div class="loading-dot w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <span class="text-sm">Buscando sugestões...</span>
+                </div>
+            `;
+        button.disabled = true;
+
+        // Contexto dos restaurantes para o modelo
+        const restaurantsContext = [
+          "1. Rafain Churrascaria Show (Churrasco com Show Latino)",
+          "2. Churrascaria Premium (Rodízio de Carnes Nobres)",
+          "3. La Mafia Trattoria (Culinária Italiana, massas, risotos)",
+          "4. Castelo Libanês (Culinária Árabe, Kibe, Homus)",
+          "5. Maki Sushi / Sushi Hokkai (Culinária Japonesa, rodízio/à la carte)",
+          "6. Capitão Bar (Gastrobar, Carnes, Petiscos, Mexicana)",
+          "7. Black Bill Smokehouse (Churrasco estilo Texano, Defumados)",
+          "8. Cantina 4 Sorelle (Culinária Italiana Tradicional)",
+          "9. Búfalo Branco Churrascaria (Churrasco, Buffet Árabe)",
+          "10. Jurassic Pizza (Rodízio de Pizzas Temático)",
+        ].join("; ");
+
+        const systemPrompt = `Você é um sommelier e crítico gastronômico em Foz do Iguaçu. Responda à pergunta do usuário sobre restaurantes ou pratos, baseando-se EXCLUSIVAMENTE nesta lista de 10 restaurantes: [${restaurantsContext}]. Seja conciso, amigável e SEMPRE indique o nome do restaurante sugerido.`;
+
+        try {
+          const result = await callGeminiAPI(userQuery, systemPrompt);
+          outputElement.innerHTML = `<p class="mt-2 text-gray-700">${result}</p>`;
+        } catch (error) {
+          outputElement.innerHTML = `<p class="text-red-500 mt-2 text-sm">Erro: ${error.message}</p>`;
+        } finally {
+          button.disabled = false;
+        }
+      }
+    </script>
+  </head>
+  <body class="p-4 md:p-8">
+    <!-- Cabeçalho Principal -->
+    <header class="text-center mb-10 p-6 bg-white rounded-xl shadow-lg">
+      <h1 class="text-3xl md:text-5xl font-extrabold text-gray-800 mb-2">
+        🗺️ Roteiro de 7 Dias: Foz do Iguaçu
+      </h1>
+      <p class="text-xl text-gray-600">
+        Férias de Fim de Ano: 25 a 31 de Dezembro
+      </p>
+    </header>
+
+    <!-- Container do Roteiro -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <!-- Seção do Mapa de Compras de Ciudad del Este (ATUALIZADO COM O MID) -->
+      <div
+        class="xl:col-span-3 lg:col-span-2 bg-white p-6 rounded-xl shadow-lg mb-6"
+      >
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          📍 Mapa de Compras: Centro de Ciudad del Este
+        </h2>
+        <p class="text-gray-600 mb-4">
+          Mapa personalizado com a localização das principais lojas, fornecido
+          via Google My Maps.
+        </p>
+
+        <!-- Iframe do Mapa Personalizado do Link (usando o MID fornecido pelo usuário) -->
+        <div class="h-96 w-full rounded-lg overflow-hidden">
+          <iframe
+            src="https://www.google.com/maps/d/embed?mid=1rIZNvg4onKSnNUIj6Vd8lM8lyjrmanc"
+            width="100%"
+            height="100%"
+            frameborder="0"
+            style="border: 0"
+            allowfullscreen=""
+            aria-hidden="false"
+            tabindex="0"
+          ></iframe>
+        </div>
+
+        <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+          <h4 class="font-semibold text-gray-700 mb-2">
+            Principais Localizações (Conforme o seu Mapa):
+          </h4>
+          <ul class="list-disc ml-4 text-sm text-gray-600">
+            <li>
+              **Lojas Próximas:** Nissei, Cellshop, Monalisa, Shopping Paris,
+              Mega Eletrônicos, Shopping del Este.
+            </li>
+            <li>
+              **Lojas Mais Afastadas:** Shopping China (Geralmente requer
+              transporte).
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- DIA 1: 25/12 - Chegada e Natal -->
+      <div class="day-card bg-white p-6 rounded-xl cde-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-red-500 text-3xl">1</span> Dia 1: **Qui, 25/12
+          - Natal** 🎅
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã -->
+          <div class="time-slot cde-color slot-manhã rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Manhã</p>
+            <p class="text-gray-600">
+              ✈️ **Chegada em Foz (13:25h):** Desembarque e deslocamento para o
+              hotel.
+            </p>
+          </div>
+          <!-- Tarde -->
+          <div class="time-slot cde-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              🚶 **Passeio Leve e Lazer:** Visita à Praça da Paz em Foz e tempo
+              para aproveitar a piscina do hotel.
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot cde-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🎄 **Jantar Especial de Natal:** Janta em um dos restaurantes
+              próximos ou no próprio hotel.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIA 2: 26/12 - Parque Aquático e Argentina -->
+      <div class="day-card bg-white p-6 rounded-xl lazer-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-yellow-600 text-3xl">2</span> Dia 2: **Sex,
+          26/12 - Água e Argentina**
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã -->
+          <div class="time-slot lazer-color slot-manhã rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Manhã</p>
+            <p class="text-gray-600">
+              🏊 **Parque Aquático (Ex: Blue Park):** Deslocamento e início da
+              diversão (mantém a programação).
+            </p>
+          </div>
+          <!-- Tarde -->
+          <div class="time-slot lazer-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              🌊 **Aproveite as Atrações:** Piscinas, toboáguas e rio lento. Sem
+              pressa (mantém a programação).
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot ar-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🇦🇷 **Jantar Argentino:** Desfrute de uma parrilla ou carne no
+              centro de Puerto Iguazú antes de regressar.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIA 3: 27/12 - Compras e Marco das Três Fronteiras -->
+      <div class="day-card bg-white p-6 rounded-xl cde-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-red-500 text-3xl">3</span> Dia 3: **Sáb, 27/12
+          - Compras e Fronteira**
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã -->
+          <div class="time-slot cde-color slot-manhã rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Manhã</p>
+            <p class="text-gray-600">
+              🛒 **Compras no Paraguai:** Foque nas lojas centrais (Nissei,
+              Cellshop, Monalisa). Saia cedo para evitar o maior fluxo.
+            </p>
+          </div>
+          <!-- Tarde -->
+          <div class="time-slot cde-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              🛍️ **Mega e Shopping Paris:** Continue as compras, incluindo o
+              Shopping China se for usar transporte. Almoce em CDE.
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot br-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🇧🇷 **Marco das Três Fronteiras:** Pôr do sol e apresentação
+              cultural no lado brasileiro (Foz).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIA 4: 28/12 - Feirinha da JK, Itaipu e Cultura -->
+      <div class="day-card bg-white p-6 rounded-xl br-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-green-600 text-3xl">4</span> Dia 4: **Dom,
+          28/12 - Energia e Cultura**
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã -->
+          <div class="time-slot br-color slot-manhã rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Manhã</p>
+            <p class="text-gray-600">
+              🛍️ **Feirinha da JK (Foz):** Visite a tradicional feira de rua
+              para artesanato e café da manhã/almoço típico (mantém a
+              programação).
+            </p>
+          </div>
+          <!-- Tarde -->
+          <div class="time-slot br-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              🔌 **Itaipu e Templo Budista:** Visita à Itaipu Binacional
+              (passeio panorâmico) e, em seguida, visita ao Templo Budista.
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot br-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🍽️ **Jantar em Foz:** Janta nos restaurantes próximos ao hotel ou
+              utilize as sugestões na lista abaixo.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIA 5: 29/12 - Compras Bis e Argentina -->
+      <div class="day-card bg-white p-6 rounded-xl cde-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-red-500 text-3xl">5</span> Dia 5: **Seg, 29/12
+          - Compras Bis e Argentina** 🇵🇾🇦🇷
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã -->
+          <div class="time-slot cde-color slot-manhã rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Manhã</p>
+            <p class="text-gray-600">
+              🛒 **Compras no Paraguai (2ª chance):** Foque nas lojas centrais
+              (Nissei, Cellshop, Monalisa). Saia cedo para evitar o maior fluxo.
+            </p>
+          </div>
+          <!-- Tarde -->
+          <div class="time-slot cde-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              🛍️ **Mega e Shopping Paris:** Continue as compras, incluindo o
+              Shopping China se for usar transporte. Almoce em CDE.
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot ar-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🇦🇷 **Puerto Iguazú e Duty Free:** Visite o centro de Puerto Iguazú
+              e o Duty Free Shop antes de regressar.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIA 6: 30/12 - Cataratas e Shopping -->
+      <div class="day-card bg-white p-6 rounded-xl br-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-green-600 text-3xl">6</span> Dia 6: **Ter,
+          30/12 - Maravilha Natural**
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã -->
+          <div class="time-slot br-color slot-manhã rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Manhã</p>
+            <p class="text-gray-600">
+              🏞️ **Cataratas do Iguaçu (Brasil):** Visita panorâmica.
+              Terça-feira é um excelente dia útil para evitar grandes lotações
+              (mantém a programação).
+            </p>
+          </div>
+          <!-- Tarde -->
+          <div class="time-slot br-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              🍔 **Almoço e Pausa:** Almoce nas proximidades do parque e volte
+              para um breve descanso no hotel (mantém a programação).
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot br-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🛍️ **Passeio no Shopping (Foz):** Visita a um dos shoppings de Foz
+              do Iguaçu (ex: Cataratas JL Shopping) para jantar e lazer.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIA 7: 31/12 - Aberto, LLM e Réveillon -->
+      <div class="day-card bg-white p-6 rounded-xl lazer-color">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+          <span class="mr-3 text-yellow-600 text-3xl">7</span> Dia 7: **Qua,
+          31/12 - Virada do Ano** 🎉
+        </h2>
+        <div class="space-y-4 text-sm">
+          <!-- Manhã/Tarde (Gerador de Ideias) -->
+          <div class="time-slot lazer-color slot-manhã rounded-lg p-3">
+            <p
+              class="font-semibold text-gray-700 flex justify-between items-center"
+            >
+              Manhã/Tarde: Livre/Em Aberto
+              <button
+                id="generate-ideas-btn"
+                onclick="generateDay7Ideas()"
+                class="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full hover:bg-yellow-600 transition duration-150"
+              >
+                ✨ Gerar Ideias
+              </button>
+            </p>
+            <div id="day7-ideas-output" class="text-gray-600 mt-1">
+              Tempo livre para compras de última hora, descanso ou atrações
+              culturais opcionais.
+            </div>
+          </div>
+
+          <!-- Tarde (Livre) -->
+          <div class="time-slot lazer-color slot-tarde rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Tarde</p>
+            <p class="text-gray-600">
+              💼 **Livre/Em Aberto:** Check-out do hotel (caso vá embora após a
+              meia noite) e preparação para a noite.
+            </p>
+          </div>
+          <!-- Noite -->
+          <div class="time-slot lazer-color slot-noite rounded-lg p-3">
+            <p class="font-semibold text-gray-700">Noite</p>
+            <p class="text-gray-600">
+              🥂 **Ceia/Festa de Réveillon:** Celebre a chegada do Ano Novo em
+              Foz do Iguaçu!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de Restaurantes Recomendados com Assistente Gemini -->
+    <div class="mt-10 p-6 bg-white rounded-xl shadow-lg">
+      <h3 class="font-bold text-2xl mb-4 text-gray-800 border-b pb-2">
+        🍽️ 10 Restaurantes Recomendados em Foz do Iguaçu
+      </h3>
+
+      <!-- Assistente de Jantar -->
+      <div class="p-4 mb-4 bg-blue-50 rounded-lg border border-blue-200">
+        <h4 class="font-bold text-lg text-blue-700 mb-2 flex items-center">
+          ✨ Assistente Gemini de Jantar
+        </h4>
+        <div class="flex flex-col md:flex-row gap-2">
+          <input
+            type="text"
+            id="dinner-query"
+            placeholder="Ex: Sugira um bom rodízio de carne."
+            class="flex-grow p-2 border border-blue-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+          />
+          <button
+            id="dinner-btn"
+            onclick="askDinnerAssistant()"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-150 flex-shrink-0"
+          >
+            ✨ Perguntar
+          </button>
+        </div>
+        <div
+          id="dinner-assistant-output"
+          class="mt-2 text-sm text-gray-600 italic"
+        >
+          O assistente irá responder a perguntas sobre os 10 restaurantes
+          listados abaixo.
+        </div>
+      </div>
+
+      <ul class="space-y-3 text-gray-700 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🥩 **1. Rafain Churrascaria Show:** Churrascaria tradicional com um
+          famoso show de danças latino-americanas à noite.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🥩 **2. Churrascaria Premium:** Excelente rodízio de carnes nobres e
+          buffet variado no centro da cidade.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🇮🇹 **3. La Mafia Trattoria:** Culinária italiana com ambiente temático
+          e pratos deliciosos como massas e risotos.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🇱🇧 **4. Castelo Libanês:** Especialista em autêntica culinária árabe
+          (Kibe, Homus, Shawarma).
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🍣 **5. Maki Sushi / Sushi Hokkai:** Ótimas opções para rodízio e
+          pratos à la carte de culinária japonesa.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🍔 **6. Capitão Bar:** Gastrobar badalado com culinária variada
+          (carnes, petiscos e mexicana), ideal para a noite.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🇺🇸 **7. Black Bill Smokehouse:** Especializado em churrasco e
+          defumados no estilo texano.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🇮🇹 **8. Cantina 4 Sorelle:** Mais uma excelente opção de rodízio e
+          culinária italiana tradicional.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🥩 **9. Búfalo Branco Churrascaria:** Tradicional churrascaria com
+          ampla variedade de carnes e buffet árabe.
+        </li>
+        <li class="p-2 bg-gray-50 rounded-lg">
+          🍕 **10. Jurassic Pizza:** Rodízio de pizzas em um ambiente temático e
+          divertido (ótimo para famílias).
+        </li>
+      </ul>
+    </div>
+
+    <!-- Informações da Locadora de Carros -->
+    <footer
+      class="mt-10 p-6 bg-blue-50 border-t-4 border-blue-400 rounded-xl shadow-md"
+    >
+      <h3 class="font-bold text-2xl mb-3 text-blue-700 flex items-center">
+        🚗 Dados da Locadora de Carros
+      </h3>
+      <div class="text-gray-700 space-y-2">
+        <p><strong>Locadora:</strong> Popular Rentacar</p>
+        <p>
+          <strong>Contato:</strong>
+          <a
+            href="tel:+554598104754"
+            class="text-blue-600 hover:text-blue-800 underline"
+            >+55 45 9810-4754</a
+          >
+        </p>
+        <p>
+          <strong>Página:</strong>
+          <a
+            href="https://popularentacar.com.br/"
+            target="_blank"
+            class="text-blue-600 hover:text-blue-800 underline"
+            >https://popularentacar.com.br/</a
+          >
+        </p>
+        <p>
+          <strong>E-mail:</strong>
+          <a
+            href="mailto:popularentacarfoz@gmail.com"
+            class="text-blue-600 hover:text-blue-800 underline"
+            >popularentacarfoz@gmail.com</a
+          >
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
